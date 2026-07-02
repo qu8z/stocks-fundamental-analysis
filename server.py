@@ -35,6 +35,13 @@ HOST = "0.0.0.0" if "PORT" in os.environ else "localhost"
 # it just needs to look like a real app/contact, not a browser UA string.
 USER_AGENT = "StocksFundamentalAnalysis/1.0 (personal research tool)"
 
+# Optional second data source for cross-checking. Off by default — get a free
+# key at https://www.alphavantage.co/support/#api-key and set it as an
+# environment variable (ALPHA_VANTAGE_KEY) to turn this on. Free tier is
+# capped at 25 requests/day, so treat it as an occasional spot-check rather
+# than an always-on second source.
+ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "").strip()
+
 ROOT = Path(__file__).parent
 CACHE_TTL = 60 * 60  # 1 hour
 
@@ -134,6 +141,60 @@ def get_quote(ticker):
         return None
 
 
+def get_alpha_vantage_check(ticker):
+    """Optional independent second source (real API, not scraped) for a
+    handful of metrics, so the SEC-derived numbers have something to be
+    checked against. Returns None entirely if no key is configured, or if
+    the free tier's 25/day limit has been hit."""
+    if not ALPHA_VANTAGE_KEY:
+        return None
+
+    def av_get(function):
+        url = (f"https://www.alphavantage.co/query?function={function}"
+               f"&symbol={urllib.parse.quote(ticker)}&apikey={ALPHA_VANTAGE_KEY}")
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept-Encoding": "gzip"})
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            raw = resp.read()
+            if resp.info().get("Content-Encoding") == "gzip":
+                raw = gzip.decompress(raw)
+            return json.loads(raw.decode("utf-8"))
+
+    def f(x):
+        try:
+            return float(x)
+        except (TypeError, ValueError):
+            return None
+
+    try:
+        income = av_get("INCOME_STATEMENT")
+        balance = av_get("BALANCE_SHEET")
+        inc_reports = (income or {}).get("annualReports", [])[:2]   # newest first
+        bal_reports = (balance or {}).get("annualReports", [])[:2]
+        if not inc_reports or not bal_reports:
+            return None  # likely an invalid symbol, or the daily rate limit was hit
+
+        rev = [f(r.get("totalRevenue")) for r in inc_reports]
+        ni = [f(r.get("netIncome")) for r in inc_reports]
+        eq = [f(r.get("totalShareholderEquity")) for r in bal_reports]
+        liab = [f(r.get("totalLiabilities")) for r in bal_reports]
+        shares = [f(r.get("commonStockSharesOutstanding")) for r in bal_reports]
+
+        out = {"source": "Alpha Vantage"}
+        if len(rev) >= 2 and rev[0] is not None and rev[1] is not None:
+            out["revenue"] = {"prior": round(rev[1] / 1e6, 2), "latest": round(rev[0] / 1e6, 2)}
+        if ni and eq and ni[0] is not None and eq[0]:
+            out["roe"] = {"latest": round((ni[0] / eq[0]) * 100, 2)}
+        if liab and eq and liab[0] is not None and eq[0]:
+            out["debtEquity"] = {"latest": round(liab[0] / eq[0], 2)}
+        if len(ni) >= 2 and len(shares) >= 2 and all(v not in (None, 0) for v in [ni[0], ni[1], shares[0], shares[1]]):
+            out["eps"] = {"prior": round(ni[1] / shares[1], 2), "latest": round(ni[0] / shares[0], 2)}
+
+        return out if len(out) > 1 else None
+    except Exception as e:
+        print(f"[alpha_vantage] check failed (non-fatal): {e}")
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Fundamental metric computation (same 8-point rubric as the frontend)
 # ---------------------------------------------------------------------------
@@ -203,34 +264,66 @@ def single_from(val):
     return {"prior": None, "latest": round(val, 2), "hasPrior": False, "hasLatest": True}
 
 
+def closest_match(target_end, series, tolerance_days=120):
+    """Find the value in `series` whose end-date is closest to target_end,
+    within tolerance_days. Matching on nearby dates (not calendar year) is
+    what makes this work — share counts, for example, are often reported as
+    of the 10-K cover-page filing date, which can land in a different
+    calendar year than the fiscal year end it actually describes."""
+    try:
+        target = date.fromisoformat(target_end)
+    except Exception:
+        return None
+    best_val, best_diff = None, None
+    for e in series:
+        try:
+            d = date.fromisoformat(e["end"])
+        except Exception:
+            continue
+        diff = abs((d - target).days)
+        if diff <= tolerance_days and (best_diff is None or diff < best_diff):
+            best_val, best_diff = e["val"], diff
+    return best_val
+
+
 def safe_div(a, b, mult=1):
     if a is None or b is None or b == 0:
         return None
     return (a / b) * mult
 
 
-def pair_from_computed(series_a, series_b, fn):
-    map_b = by_year(series_b)
+def pair_from_computed(series_a, series_b, fn, tolerance_days=120):
     combined = []
     for e in series_a:
-        yr = e["end"][:4]
-        if yr in map_b:
-            v = fn(e["val"], map_b[yr])
+        b_val = closest_match(e["end"], series_b, tolerance_days)
+        if b_val is not None:
+            v = fn(e["val"], b_val)
             if v is not None:
                 combined.append({"end": e["end"], "val": v})
     return pair_from(combined[-2:])
 
 
-def pair_from_computed3(series_a, series_b, series_c, fn):
-    map_b, map_c = by_year(series_b), by_year(series_c)
+def pair_from_computed3(series_a, series_b, series_c, fn, tolerance_days=120):
     combined = []
     for e in series_a:
-        yr = e["end"][:4]
-        if yr in map_b and yr in map_c:
-            v = fn(e["val"], map_b[yr], map_c[yr])
+        b_val = closest_match(e["end"], series_b, tolerance_days)
+        c_val = closest_match(e["end"], series_c, tolerance_days)
+        if b_val is not None and c_val is not None:
+            v = fn(e["val"], b_val, c_val)
             if v is not None:
                 combined.append({"end": e["end"], "val": v})
     return pair_from(combined[-2:])
+
+
+def ratio_latest(numerator_series, denominator_series, mult=1, tolerance_days=60):
+    """Latest-period ratio, aligned to the same fiscal date on both sides —
+    instead of blindly taking each series' own most recent entry, which can
+    silently pair figures from two different fiscal periods."""
+    if not denominator_series:
+        return None
+    last_den = denominator_series[-1]
+    num_val = closest_match(last_den["end"], numerator_series, tolerance_days)
+    return safe_div(num_val, last_den["val"], mult)
 
 
 def compute_metrics(facts):
@@ -245,7 +338,6 @@ def compute_metrics(facts):
     capex = series_for(facts, CONCEPTS["capex"], True)
     op_inc = series_for(facts, CONCEPTS["operatingIncome"], True)
     int_exp = series_for(facts, CONCEPTS["interestExpense"], True)
-    last_val = lambda arr: arr[-1]["val"] if arr else None
 
     entries = {}
     rev_pair = pair_from(rev[-2:])
@@ -256,11 +348,11 @@ def compute_metrics(facts):
         "source": "sec",
     }
     entries["eps"] = {**pair_from(eps[-2:]), "source": "sec"}
-    entries["roe"] = {**single_from(safe_div(last_val(ni), last_val(eq), 100)), "source": "sec-computed"}
+    entries["roe"] = {**single_from(ratio_latest(ni, eq, 100, tolerance_days=45)), "source": "sec-computed"}
     entries["bvps"] = {**pair_from_computed(eq, shares, lambda e, s: e / s if s else None), "source": "sec-computed"}
     entries["fcf"] = {**pair_from_computed3(cfo, capex, shares, lambda c, x, s: (c - x) / s if s else None), "source": "sec-computed"}
-    entries["interestCoverage"] = {**single_from(safe_div(last_val(op_inc), last_val(int_exp))), "source": "sec-computed"}
-    entries["debtEquity"] = {**single_from(safe_div(last_val(liab), last_val(eq))), "source": "sec-computed"}
+    entries["interestCoverage"] = {**single_from(ratio_latest(op_inc, int_exp, 1, tolerance_days=60)), "source": "sec-computed"}
+    entries["debtEquity"] = {**single_from(ratio_latest(liab, eq, 1, tolerance_days=45)), "source": "sec-computed"}
     entries["dividends"] = {**pair_from(dps[-2:]), "source": "sec"}
     return entries
 
@@ -324,8 +416,9 @@ class Handler(BaseHTTPRequestHandler):
                 facts = get_company_facts(hit["cik"])
                 metrics = compute_metrics(facts)
                 quote = get_quote(ticker)
+                alt_check = get_alpha_vantage_check(ticker)
                 print(f"[analyze] {ticker} total {time.time()-t0:.2f}s")
-                self._json({"company": hit, "metrics": metrics, "quote": quote})
+                self._json({"company": hit, "metrics": metrics, "quote": quote, "altCheck": alt_check})
             except urllib.error.HTTPError as e:
                 self._json({"error": f"SEC EDGAR returned HTTP {e.code} for that filer."}, 502)
             except Exception as e:
