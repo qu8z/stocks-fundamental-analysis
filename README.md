@@ -142,29 +142,36 @@ lines with me; that'll show exactly which step is the bottleneck.
 By default the app uses two sources: SEC EDGAR (fundamentals) and Stooq
 (price). You can add a third, real, independent source — [Alpha
 Vantage](https://www.alphavantage.co) — to see Revenue, EPS, ROE, and
-Debt/Equity compared side by side against what SEC EDGAR shows, with a quick
-"within 5%" / "X% apart" flag.
+Debt/Equity compared side by side against what SEC EDGAR shows.
 
-This is **off by default** and entirely optional:
+This is **off by default** and entirely optional. Setup:
 
-1. Get a free API key at
+1. Get a free key at
    [alphavantage.co/support/#api-key](https://www.alphavantage.co/support/#api-key)
    (just an email address, no card).
-2. Set it as an environment variable before running the server:
-   - **Locally**: `export ALPHA_VANTAGE_KEY=yourkeyhere` (Mac/Linux) or
-     `set ALPHA_VANTAGE_KEY=yourkeyhere` (Windows), then run `python3 server.py`
-     in that same terminal session.
-   - **On Render**: go to your service → **Environment** → **Add Environment
-     Variable** → key `ALPHA_VANTAGE_KEY`, value your key → save (this
-     triggers a redeploy).
-3. Search a company — if the key is working, a blue "Independent
-   Cross-Check" panel appears above the scorecard table.
+2. Open `server.py` and find this line near the top:
+   ```python
+   ALPHA_VANTAGE_KEY_HARDCODED = ""
+   ```
+   Paste your key between the quotes, e.g.:
+   ```python
+   ALPHA_VANTAGE_KEY_HARDCODED = "ABC123YOURKEYHERE"
+   ```
+3. Save the file, restart the server (`python3 server.py`), or on Render,
+   commit the change and let it redeploy.
+
+**Important — this alone won't change anything on the page.** The key only
+does something the *next time you search a company*. Setting it doesn't
+change the homepage, the empty state, or anything visible until you actually
+run a search — at that point, if the key is working, a blue "Independent
+Cross-Check" panel appears above the scorecard table. No search = nothing to
+see yet, that's expected.
 
 **Free tier limit**: 25 requests/day (2 requests per analysis), so treat this
 as an occasional spot-check rather than something to run on every search.
-If the panel doesn't appear, it's most likely that daily cap — it fails
-silently rather than breaking the rest of the app, since this is a bonus
-feature, not a required one.
+If the panel still doesn't appear after a real search, check the terminal —
+there's a log line (`[alpha_vantage] check failed: ...`) that will say why
+(usually an invalid key or the daily limit).
 
 ## Not investment advice
 
