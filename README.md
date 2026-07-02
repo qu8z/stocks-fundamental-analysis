@@ -137,6 +137,35 @@ The server now prints timing info to Render's logs (e.g.
 those logs (Render dashboard → your service → **Logs**) and share the timing
 lines with me; that'll show exactly which step is the bottleneck.
 
+## Optional: independent cross-check via Alpha Vantage
+
+By default the app uses two sources: SEC EDGAR (fundamentals) and Stooq
+(price). You can add a third, real, independent source — [Alpha
+Vantage](https://www.alphavantage.co) — to see Revenue, EPS, ROE, and
+Debt/Equity compared side by side against what SEC EDGAR shows, with a quick
+"within 5%" / "X% apart" flag.
+
+This is **off by default** and entirely optional:
+
+1. Get a free API key at
+   [alphavantage.co/support/#api-key](https://www.alphavantage.co/support/#api-key)
+   (just an email address, no card).
+2. Set it as an environment variable before running the server:
+   - **Locally**: `export ALPHA_VANTAGE_KEY=yourkeyhere` (Mac/Linux) or
+     `set ALPHA_VANTAGE_KEY=yourkeyhere` (Windows), then run `python3 server.py`
+     in that same terminal session.
+   - **On Render**: go to your service → **Environment** → **Add Environment
+     Variable** → key `ALPHA_VANTAGE_KEY`, value your key → save (this
+     triggers a redeploy).
+3. Search a company — if the key is working, a blue "Independent
+   Cross-Check" panel appears above the scorecard table.
+
+**Free tier limit**: 25 requests/day (2 requests per analysis), so treat this
+as an occasional spot-check rather than something to run on every search.
+If the panel doesn't appear, it's most likely that daily cap — it fails
+silently rather than breaking the rest of the app, since this is a bonus
+feature, not a required one.
+
 ## Not investment advice
 
 This tool is for exploring public filings faster, not a recommendation
