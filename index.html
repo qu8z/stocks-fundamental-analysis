@@ -109,6 +109,17 @@
   .panel-hint{ margin-top:13px; font-size:12px; color:var(--text-faint); line-height:1.55; }
   .panel-hint b{ color:var(--text-soft); }
 
+  .av-status{
+    margin-top:10px; font-family:'IBM Plex Mono',monospace; font-size:11px;
+    padding:8px 12px; border-radius:8px; display:inline-flex; align-items:center; gap:7px;
+    background:var(--surface-alt); color:var(--text-faint); border:1px solid var(--border);
+  }
+  .av-status .dot{ width:6px; height:6px; border-radius:50%; background:var(--text-faint); flex-shrink:0; }
+  .av-status.on{ background:var(--emerald-bg); color:var(--emerald); border-color:var(--emerald-border); }
+  .av-status.on .dot{ background:var(--emerald); }
+  .av-status.off{ background:var(--amber-bg); color:var(--amber); border-color:var(--amber-border); }
+  .av-status.off .dot{ background:var(--amber); }
+
   .dropzone{
     border:2px dashed var(--border); border-radius:14px;
     padding:34px 20px; text-align:center; cursor:pointer;
@@ -338,6 +349,7 @@
         <div class="suggestions" id="suggestions"></div>
       </div>
       <div class="panel-hint">This app's own local server fetches filings from <b>SEC EDGAR</b> directly, then cross-checks the price against <b>Stooq</b> — two independent sources, no relay, no key.</div>
+      <div class="av-status" id="avStatus">Checking Alpha Vantage cross-check status…</div>
     </div>
 
     <div class="tab-panel" id="panel-pdf">
@@ -440,6 +452,24 @@ const companyInput = els('companyInput'), suggestionsEl = els('suggestions');
 
 const state = {};
 const GAUGE_CIRC = 314.159;
+
+(async function checkAlphaVantageStatus(){
+  const el = els('avStatus');
+  try{
+    const r = await fetch('/api/status');
+    const data = await r.json();
+    if(data.alphaVantageConfigured){
+      el.className = 'av-status on';
+      el.innerHTML = '<span class="dot"></span>Alpha Vantage cross-check: <b>active</b> — a comparison panel will appear after you search a company';
+    }else{
+      el.className = 'av-status off';
+      el.innerHTML = '<span class="dot"></span>Alpha Vantage cross-check: <b>not set up</b> — optional, see README to add a free key';
+    }
+  }catch(e){
+    el.className = 'av-status off';
+    el.innerHTML = '<span class="dot"></span>Couldn\'t reach the local server to check status — is server.py running?';
+  }
+})();
 
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
