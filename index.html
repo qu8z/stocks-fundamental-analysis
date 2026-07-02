@@ -216,6 +216,24 @@
   }
   .methodology-note.show{ display:block; }
 
+  .altcheck-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:18px 22px; margin-bottom:20px;
+  }
+  .altcheck-title{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.07em; text-transform:uppercase;
+    color:var(--blue); margin-bottom:12px; display:flex; align-items:center; gap:7px;
+  }
+  .altcheck-title .dot{ width:6px; height:6px; border-radius:50%; background:var(--blue); }
+  .altcheck-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+  .altcheck-item{ font-size:12.5px; }
+  .altcheck-item .m-name{ font-weight:600; color:var(--text); margin-bottom:4px; }
+  .altcheck-item .m-row{ display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text-soft); }
+  .altcheck-item .m-row b{ color:var(--text); }
+  .altcheck-item .m-diff{ font-size:11px; margin-top:3px; }
+  .altcheck-item .m-diff.match{ color:var(--emerald); }
+  .altcheck-item .m-diff.off{ color:var(--amber); }
+
   .table-title{ font-family:'Fraunces',serif; font-weight:700; font-style:italic; font-size:18px; margin:0 0 13px; color:var(--text); }
   .table-card{
     background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
@@ -373,6 +391,7 @@
     </div>
 
     <div class="methodology-note" id="methodologyNote"></div>
+    <div class="altcheck-card" id="altcheckCard" style="display:none;"></div>
 
     <h2 class="table-title">Fundamental Scorecard</h2>
     <div class="table-card">
@@ -508,6 +527,7 @@ fileInput.addEventListener('change', e=>{ if(e.target.files.length) handleFile(e
 resetBtn.addEventListener('click', ()=>{
   resultsEl.classList.remove('show'); emptyState.style.display = 'block';
   fileInput.value = ''; errorBanner.classList.remove('show');
+  els('altcheckCard').style.display = 'none';
   window.scrollTo({top:0, behavior:'smooth'});
 });
 
@@ -522,6 +542,7 @@ async function handleFile(file){
     const lines = await parsePdfBuffer(buf);
     const { name, ticker } = guessCompany(lines);
     const entries = entriesFromPdfLines(lines);
+    els('altcheckCard').style.display = 'none';
     applyEntries(entries, { name: name || file.name.replace(/\.pdf$/i,''), meta: (ticker ? ticker + ' · ' : '') + 'parsed from ' + file.name, ticker }, null);
   }catch(err){
     console.error(err);
@@ -595,6 +616,7 @@ async function runCompanySearch(tickerOrGuess){
     }
     coMetaEl.innerHTML = meta;
     applyEntries(data.metrics, { name: data.company.title, ticker }, 'sec', true);
+    renderAltCheck(data.altCheck, data.metrics);
   }catch(err){
     console.error(err);
     showError("Couldn't reach the local server. Make sure server.py is still running in your terminal, then try again.");
@@ -629,6 +651,34 @@ function buildTableRow(metric){
     <td class="col-score points"><span class="earned pending" id="pts-${metric.key}">–</span> <span class="max">/${metric.max}</span></td>
   `;
   return tr;
+}
+
+function renderAltCheck(alt, secMetrics){
+  const card = els('altcheckCard');
+  if(!alt){ card.style.display = 'none'; card.innerHTML = ''; return; }
+
+  const labels = { revenue:'Revenue ($M)', eps:'EPS ($)', roe:'ROE (%)', debtEquity:'Debt/Equity (x)' };
+  const items = Object.keys(labels).filter(k => alt[k] && secMetrics[k]).map(k=>{
+    const secLatest = secMetrics[k].latest;
+    const avLatest = alt[k].latest;
+    let diffTxt = '', diffCls = '';
+    if(secLatest !== null && secLatest !== undefined && avLatest !== null && avLatest !== undefined && secLatest !== 0){
+      const pctDiff = Math.abs((avLatest - secLatest) / secLatest) * 100;
+      diffCls = pctDiff <= 5 ? 'match' : 'off';
+      diffTxt = pctDiff <= 5 ? '\u2713 within 5%' : '\u26a0 ' + pctDiff.toFixed(0) + '% apart';
+    }
+    return `<div class="altcheck-item">
+      <div class="m-name">${labels[k]}</div>
+      <div class="m-row"><span>SEC</span><b>${secLatest ?? '—'}</b></div>
+      <div class="m-row"><span>Alpha Vantage</span><b>${avLatest ?? '—'}</b></div>
+      ${diffTxt ? `<div class="m-diff ${diffCls}">${diffTxt}</div>` : ''}
+    </div>`;
+  });
+
+  if(!items.length){ card.style.display = 'none'; card.innerHTML = ''; return; }
+  card.style.display = 'block';
+  card.innerHTML = `<div class="altcheck-title"><span class="dot"></span>Independent Cross-Check — Alpha Vantage</div>
+    <div class="altcheck-grid">${items.join('')}</div>`;
 }
 
 function renderCrossref(ticker){
