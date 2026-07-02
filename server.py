@@ -41,7 +41,7 @@ USER_AGENT = "StocksFundamentalAnalysis/1.0 (personal research tool)"
 #   https://www.alphavantage.co/support/#api-key
 # Leave it as "" (empty) to skip this feature — the rest of the app works
 # fine either way, this only adds a bonus comparison panel when it's set.
-ALPHA_VANTAGE_KEY_HARDCODED = "5USD4432R6508Y3U"
+ALPHA_VANTAGE_KEY_HARDCODED = ""
 # ============================================================================
 
 # (Advanced/optional: if you'd rather set it as an environment variable
@@ -397,6 +397,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if path in ("/", "/index.html"):
             self._file(ROOT / "index.html", "text/html; charset=utf-8")
+            return
+
+        if path == "/api/status":
+            self._json({"alphaVantageConfigured": bool(ALPHA_VANTAGE_KEY)})
             return
 
         if path == "/api/search":
