@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stocks Fundamental Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,600&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root{
+    --bg:#F8FAFC; --surface:#FFFFFF; --surface-alt:#F1F5F9; --border:#E2E8F0;
+    --text:#0F172A; --text-soft:#475569; --text-faint:#94A3B8;
+    --emerald:#059669; --emerald-bg:#ECFDF5; --emerald-border:#A7F3D0;
+    --rose:#DC2626; --rose-bg:#FEF2F2; --rose-border:#FECACA;
+    --amber:#D97706; --amber-bg:#FFFBEB; --amber-border:#FDE68A;
+    --blue:#2563EB; --blue-bg:#EFF6FF;
+    --radius:16px;
+    --shadow: 0 1px 2px rgba(15,23,42,.04), 0 10px 30px rgba(15,23,42,.06);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important; } }
+  body{
+    margin:0; font-family:'Inter',sans-serif; color:var(--text);
+    background: linear-gradient(180deg, #FAFBFD 0%, var(--bg) 340px);
+    min-height:100vh;
+  }
+  ::selection{ background:#CFF3E1; color:var(--text); }
+  a{ color:inherit; }
+
+  .wrap{ max-width:1100px; margin:0 auto; padding:56px 24px 100px; }
+
+  header.site{ text-align:center; margin-bottom:8px; }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--text-faint); margin-bottom:14px;
+  }
+  h1.title{
+    font-family:'Fraunces',serif; font-weight:700; font-size:clamp(30px,4.4vw,44px);
+    margin:0 0 14px; letter-spacing:-.015em; color:var(--text);
+  }
+  h1.title .accent{ color:var(--emerald); }
+  .subtitle{ color:var(--text-soft); font-size:15.5px; max-width:520px; margin:0 auto; line-height:1.6; }
+
+  .badge-row{ display:flex; justify-content:center; gap:10px; margin-top:18px; flex-wrap:wrap; }
+  .badge{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--text-soft); background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:6px 13px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .badge .dot{ width:6px; height:6px; border-radius:50%; background:var(--emerald); }
+
+  .intake-card{
+    max-width:620px; margin:34px auto 0; border-radius:var(--radius);
+    background:var(--surface); border:1px solid var(--border); box-shadow:var(--shadow); overflow:hidden;
+  }
+  .tabs{ display:flex; background:var(--surface-alt); border-bottom:1px solid var(--border); }
+  .tab-btn{
+    flex:1; padding:15px 10px; text-align:center;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.07em; text-transform:uppercase;
+    background:transparent; color:var(--text-faint); border:none; cursor:pointer;
+    border-bottom:2px solid transparent; margin-bottom:-1px; transition:all .15s ease;
+    display:flex; align-items:center; justify-content:center; gap:7px;
+  }
+  .tab-btn svg{ width:13px; height:13px; }
+  .tab-btn.active{ color:var(--text); border-bottom-color:var(--emerald); font-weight:600; background:var(--surface); }
+  .tab-btn:not(.active):hover{ color:var(--text-soft); }
+  .tab-panel{ display:none; padding:26px; }
+  .tab-panel.active{ display:block; animation: fadeUp .3s ease both; }
+
+  .search-wrap{ position:relative; }
+  .field-row{ display:flex; gap:10px; }
+  .text-input{
+    flex:1; font-family:'Inter',sans-serif; font-size:14.5px;
+    padding:12px 15px; border:1.5px solid var(--border); border-radius:11px;
+    background:var(--surface); color:var(--text);
+  }
+  .text-input::placeholder{ color:var(--text-faint); }
+  .text-input:focus{ outline:none; border-color:var(--emerald); box-shadow:0 0 0 3px var(--emerald-bg); }
+  .go-btn{
+    font-family:'Inter',sans-serif; font-weight:700; font-size:13.5px;
+    padding:0 22px; border:none; border-radius:11px; cursor:pointer;
+    background:var(--text); color:#fff; transition:background .15s ease, transform .1s ease;
+  }
+  .go-btn:hover{ background:#1E293B; }
+  .go-btn:active{ transform:scale(.97); }
+
+  .suggestions{
+    position:absolute; left:0; right:0; top:calc(100% + 8px);
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    box-shadow:var(--shadow); overflow:hidden; display:none; z-index:20; max-height:270px; overflow-y:auto;
+  }
+  .suggestions.show{ display:block; }
+  .sugg-item{
+    display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+    padding:11px 15px; background:none; border:none; cursor:pointer; color:var(--text);
+    border-bottom:1px solid var(--border);
+  }
+  .sugg-item:last-child{ border-bottom:none; }
+  .sugg-item:hover{ background:var(--surface-alt); }
+  .sugg-ticker{
+    font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:11.5px; color:var(--emerald);
+    background:var(--emerald-bg); padding:3px 8px; border-radius:6px; flex-shrink:0;
+  }
+  .sugg-name{ font-size:13px; color:var(--text-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sugg-empty{ padding:14px 15px; color:var(--text-faint); font-size:12.5px; }
+
+  .panel-hint{ margin-top:13px; font-size:12px; color:var(--text-faint); line-height:1.55; }
+  .panel-hint b{ color:var(--text-soft); }
+
+  .dropzone{
+    border:2px dashed var(--border); border-radius:14px;
+    padding:34px 20px; text-align:center; cursor:pointer;
+    transition:border-color .18s ease, background .18s ease;
+  }
+  .dropzone.drag{ border-color:var(--emerald); background:var(--emerald-bg); }
+  .dropzone svg{ width:32px; height:32px; margin-bottom:11px; color:var(--emerald); }
+  .dropzone .dz-title{ font-weight:600; font-size:14.5px; margin-bottom:5px; }
+  .dropzone .dz-sub{ color:var(--text-faint); font-size:12.5px; }
+  .dropzone .dz-sub b{ color:var(--text-soft); font-weight:600; text-decoration:underline; text-underline-offset:2px; }
+  #fileInput{ display:none; }
+
+  .loading{
+    max-width:620px; margin:20px auto 0; text-align:center;
+    color:var(--text-soft); font-family:'IBM Plex Mono',monospace; font-size:12.5px;
+    display:none; align-items:center; justify-content:center; gap:10px;
+  }
+  .loading.show{ display:flex; }
+  .spinner{ width:13px; height:13px; border-radius:50%; border:2px solid var(--border); border-top-color:var(--emerald); animation:spin .7s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .error-banner{
+    max-width:620px; margin:16px auto 0; padding:13px 17px;
+    background:var(--rose-bg); border:1px solid var(--rose-border); border-radius:12px;
+    color:#991B1B; font-size:13px; display:none; line-height:1.5;
+  }
+  .error-banner.show{ display:block; }
+
+  .empty-state{
+    max-width:620px; margin:48px auto 0; text-align:center; color:var(--text-faint);
+    padding:34px 20px; border:1px dashed var(--border); border-radius:var(--radius);
+  }
+  .empty-state svg{ width:28px; height:28px; margin-bottom:11px; opacity:.55; }
+  .empty-state p{ font-size:13px; margin:0; line-height:1.6; }
+
+  #results{ display:none; }
+  #results.show{ display:block; animation: fadeUp .4s ease both; }
+  @keyframes fadeUp{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
+
+  .company-bar{
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;
+    margin:52px 0 20px;
+  }
+  .company-id .co-name{ font-family:'Fraunces',serif; font-size:25px; font-weight:700; }
+  .company-id .co-meta{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--text-faint); margin-top:4px; }
+  .co-meta .quote-chip{ color:var(--emerald); font-weight:600; }
+  .reset-btn{
+    font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600;
+    background:var(--surface); border:1px solid var(--border); border-radius:9px;
+    padding:9px 15px; cursor:pointer; color:var(--text-soft); transition:all .15s ease;
+  }
+  .reset-btn:hover{ border-color:var(--text-faint); color:var(--text); }
+
+  .crossref-row{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:22px; }
+  .crossref-link{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--blue);
+    background:var(--blue-bg); border:1px solid #DBEAFE; border-radius:20px; padding:6px 12px;
+    text-decoration:none; display:inline-flex; align-items:center; gap:5px; transition:background .15s ease;
+  }
+  .crossref-link:hover{ background:#DBEAFE; }
+  .crossref-link svg{ width:10px; height:10px; }
+
+  .score-hero{
+    display:flex; align-items:center; gap:30px; flex-wrap:wrap;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:28px 32px; margin-bottom:24px;
+  }
+  .gauge-wrap{ position:relative; width:116px; height:116px; flex-shrink:0; }
+  .gauge{ width:100%; height:100%; }
+  .gauge-track{ fill:none; stroke:var(--surface-alt); stroke-width:9; }
+  .gauge-fill{
+    fill:none; stroke:var(--text-faint); stroke-width:9; stroke-linecap:round;
+    stroke-dasharray:314.159; stroke-dashoffset:314.159; transform:rotate(-90deg); transform-origin:60px 60px;
+    transition:stroke-dashoffset .9s cubic-bezier(.4,0,.2,1), stroke .4s ease;
+  }
+  .gauge-fill.tier-green{ stroke:var(--emerald); }
+  .gauge-fill.tier-amber{ stroke:var(--amber); }
+  .gauge-fill.tier-rose{ stroke:var(--rose); }
+  .gauge-center{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .gauge-score{ font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:32px; line-height:1; color:var(--text); }
+  .gauge-den{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text-faint); margin-top:2px; }
+
+  .hero-text{ flex:1; min-width:220px; }
+  .tier-badge{
+    display:inline-flex; align-items:center; gap:7px; padding:5px 12px; border-radius:20px;
+    font-family:'Inter',sans-serif; font-weight:700; font-size:13px; margin-bottom:9px;
+    background:var(--surface-alt); color:var(--text-soft); border:1px solid var(--border);
+  }
+  .tier-badge.tier-green{ background:var(--emerald-bg); color:var(--emerald); border-color:var(--emerald-border); }
+  .tier-badge.tier-amber{ background:var(--amber-bg); color:var(--amber); border-color:var(--amber-border); }
+  .tier-badge.tier-rose{ background:var(--rose-bg); color:var(--rose); border-color:var(--rose-border); }
+  .tier-badge .dot{ width:7px; height:7px; border-radius:50%; background:currentColor; }
+  .tier-sub{ color:var(--text-soft); font-size:12.5px; margin-bottom:14px; line-height:1.5; max-width:440px; }
+
+  .completeness{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text-faint); display:flex; align-items:center; gap:9px; }
+  .completeness .bar{ width:120px; height:5px; background:var(--surface-alt); border-radius:3px; overflow:hidden; }
+  .completeness .bar > span{ display:block; height:100%; background:var(--emerald); transition:width .35s ease; }
+
+  .pending-note{ margin-top:12px; font-size:11px; color:var(--amber); background:var(--amber-bg); border:1px solid var(--amber-border); padding:8px 11px; border-radius:9px; line-height:1.4; display:none; max-width:460px; }
+  .pending-note.show{ display:block; }
+
+  .methodology-note{
+    font-size:11.5px; color:var(--text-soft); background:var(--blue-bg); border:1px solid #DBEAFE;
+    border-radius:12px; padding:11px 15px; margin-bottom:20px; line-height:1.5; display:none;
+  }
+  .methodology-note.show{ display:block; }
+
+  .table-title{ font-family:'Fraunces',serif; font-weight:700; font-style:italic; font-size:18px; margin:0 0 13px; color:var(--text); }
+  .table-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    box-shadow:var(--shadow); overflow-x:auto;
+  }
+  table.metrics-table{ width:100%; border-collapse:collapse; min-width:740px; }
+  .metrics-table thead th{
+    text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.07em; text-transform:uppercase;
+    color:var(--text-faint); padding:15px 16px; border-bottom:1px solid var(--border); white-space:nowrap; background:var(--surface-alt);
+  }
+  .metrics-table thead th.center{ text-align:center; }
+  .metrics-table tbody tr{
+    border-bottom:1px solid var(--border);
+    opacity:0; transform:translateY(5px); animation:rowIn .4s ease forwards;
+  }
+  .metrics-table tbody tr:nth-child(1){ animation-delay:.02s; } .metrics-table tbody tr:nth-child(2){ animation-delay:.05s; }
+  .metrics-table tbody tr:nth-child(3){ animation-delay:.08s; } .metrics-table tbody tr:nth-child(4){ animation-delay:.11s; }
+  .metrics-table tbody tr:nth-child(5){ animation-delay:.14s; } .metrics-table tbody tr:nth-child(6){ animation-delay:.17s; }
+  .metrics-table tbody tr:nth-child(7){ animation-delay:.20s; } .metrics-table tbody tr:nth-child(8){ animation-delay:.23s; }
+  @keyframes rowIn{ to{ opacity:1; transform:none; } }
+  .metrics-table tbody tr:last-child{ border-bottom:none; }
+  .metrics-table tbody tr:hover{ background:var(--surface-alt); }
+  .metrics-table tbody tr.missing{ background:var(--amber-bg); }
+  .metrics-table td{ padding:15px 16px; vertical-align:top; }
+
+  .col-mark{ width:38px; }
+  .mark{
+    width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    background:var(--surface-alt); color:var(--text-faint);
+  }
+  .mark svg{ width:14px; height:14px; }
+  .mark.pass{ color:var(--emerald); background:var(--emerald-bg); }
+  .mark.fail{ color:var(--rose); background:var(--rose-bg); }
+  .mark.pending{ color:var(--text-faint); }
+
+  .col-metric{ min-width:200px; }
+  .metric-name{ font-weight:600; font-size:13.5px; color:var(--text); }
+  .metric-desc{ color:var(--text-faint); font-size:11.5px; margin-top:3px; line-height:1.4; }
+  .metric-tags{ margin-top:7px; display:flex; gap:6px; flex-wrap:wrap; }
+  .tag{
+    font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:.03em;
+    padding:2.5px 7px; border-radius:20px; background:var(--surface-alt); color:var(--text-faint); border:1px solid var(--border);
+  }
+  .tag.source.src-pdf{ background:var(--emerald-bg); color:var(--emerald); border-color:var(--emerald-border); }
+  .tag.source.src-sec{ background:var(--blue-bg); color:var(--blue); border-color:#DBEAFE; }
+  .tag.source.src-manual{ background:var(--surface-alt); color:var(--text-faint); }
+  .missing-note{ margin-top:6px; font-size:10.5px; color:var(--amber); font-weight:600; }
+
+  .col-val{ width:104px; }
+  .cell-input{
+    width:92px; font-family:'IBM Plex Mono',monospace; font-size:12.5px;
+    padding:7px 9px; border:1px solid var(--border); border-radius:8px;
+    background:var(--surface); color:var(--text);
+  }
+  .cell-input::placeholder{ color:var(--text-faint); font-size:10.5px; }
+  .cell-input:focus{ outline:none; border-color:var(--emerald); box-shadow:0 0 0 3px var(--emerald-bg); }
+  .dash{ color:var(--text-faint); font-family:'IBM Plex Mono',monospace; }
+
+  .col-rule{ font-size:11px; color:var(--text-faint); max-width:190px; line-height:1.5; }
+  .col-score{ text-align:right; white-space:nowrap; }
+  .points .earned{ font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:15px; }
+  .points .earned.pass{ color:var(--emerald); }
+  .points .earned.fail{ color:var(--rose); }
+  .points .earned.pending{ color:var(--text-faint); }
+  .points .max{ color:var(--text-faint); font-weight:400; font-family:'IBM Plex Mono',monospace; font-size:12.5px; }
+
+  @media (max-width:680px){ .col-rule{ display:none; } }
+
+  footer.foot{ text-align:center; margin-top:56px; color:var(--text-faint); font-size:11px; font-family:'IBM Plex Mono',monospace; line-height:1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="site">
+    <div class="eyebrow">Fundamental Analysis</div>
+    <h1 class="title">Stocks <span class="accent">Fundamental Analysis</span></h1>
+    <p class="subtitle">Search any US-listed company, or drop a factsheet PDF — grade it on 8 fundamentals, out of 15 points, straight from the filings.</p>
+    <div class="badge-row">
+      <span class="badge"><span class="dot"></span>Live SEC EDGAR data</span>
+      <span class="badge">Cross-checked against Stooq</span>
+    </div>
+  </header>
+
+  <div class="intake-card">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        Search Company
+      </button>
+      <button class="tab-btn" data-tab="pdf">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0-12l4 4m-4-4l-4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+        Drop PDF
+      </button>
+    </div>
+
+    <div class="tab-panel active" id="panel-search">
+      <div class="search-wrap">
+        <div class="field-row">
+          <input type="text" class="text-input" id="companyInput" placeholder="Type a company name — e.g. Apple, Visa, Tesla" autocomplete="off">
+          <button class="go-btn" id="companyGo">Analyze</button>
+        </div>
+        <div class="suggestions" id="suggestions"></div>
+      </div>
+      <div class="panel-hint">This app's own local server fetches filings from <b>SEC EDGAR</b> directly, then cross-checks the price against <b>Stooq</b> — two independent sources, no relay, no key.</div>
+    </div>
+
+    <div class="tab-panel" id="panel-pdf">
+      <div class="dropzone" id="dropzone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v12m0-12l4 4m-4-4l-4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+        <div class="dz-title">Drop a factsheet PDF here</div>
+        <div class="dz-sub">or <b>click to browse</b> — Jitta-style factsheets work best</div>
+        <input type="file" id="fileInput" accept="application/pdf">
+      </div>
+    </div>
+  </div>
+
+  <div class="loading" id="loading"><span class="spinner"></span><span id="loadingText">Working…</span></div>
+  <div class="error-banner" id="errorBanner"></div>
+  <div class="empty-state" id="emptyState">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 17V9m3 8V5m3 12v-5M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+    <p>Search a company above, or drop in a factsheet PDF, to see the fundamental scorecard here.</p>
+  </div>
+
+  <div id="results">
+    <div class="company-bar">
+      <div class="company-id">
+        <div class="co-name" id="coName">—</div>
+        <div class="co-meta" id="coMeta">—</div>
+      </div>
+      <button class="reset-btn" id="resetBtn">Start over</button>
+    </div>
+
+    <div class="crossref-row" id="crossrefRow"></div>
+
+    <div class="score-hero">
+      <div class="gauge-wrap">
+        <svg class="gauge" viewBox="0 0 120 120">
+          <circle class="gauge-track" cx="60" cy="60" r="50"/>
+          <circle class="gauge-fill" id="gaugeFill" cx="60" cy="60" r="50"/>
+        </svg>
+        <div class="gauge-center">
+          <div class="gauge-score" id="scoreNum">0</div>
+          <div class="gauge-den">/ 15</div>
+        </div>
+      </div>
+      <div class="hero-text">
+        <div class="tier-badge" id="tierBadge"><span class="dot"></span><span id="tierLabel">Not graded yet</span></div>
+        <div class="tier-sub" id="tierSub">Search a company or drop a PDF to begin.</div>
+        <div class="completeness">
+          <span id="completenessText">0 of 8 metrics scored</span>
+          <span class="bar"><span id="completenessBar" style="width:0%"></span></span>
+        </div>
+        <div class="pending-note" id="pendingNote"></div>
+      </div>
+    </div>
+
+    <div class="methodology-note" id="methodologyNote"></div>
+
+    <h2 class="table-title">Fundamental Scorecard</h2>
+    <div class="table-card">
+      <table class="metrics-table">
+        <thead>
+          <tr><th></th><th>Metric</th><th>Prior Yr</th><th>Latest Yr</th><th>Rule</th><th class="center">Score</th></tr>
+        </thead>
+        <tbody id="ledgerBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="foot">Numbers are read automatically where possible — always double-check against the source before acting on them.<br>SEC EDGAR data covers US-listed filers only. Not investment advice.</footer>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+const X_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+const DASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+
+const METRICS = [
+  { key:'revenue', name:'Revenue (Top Line)', desc:'Is the company growing?', timeframe:'2yr', unit:'$M', labelRegex:/\btotal revenue\b/i, ruleText:'0 pt if decreasing/negative · 1 pt flat · 2 pts growing', max:2 },
+  { key:'eps', name:'EPS (Earnings per Share)', desc:'Indicator of profitability.', timeframe:'2yr', unit:'$', labelRegex:/\bearnings per share\b/i, ruleText:'0 pt if decreasing/negative · 1 pt flat · 2 pts growing', max:2 },
+  { key:'roe', name:'ROE (Return on Equity)', desc:'How efficiently equity generates profit.', timeframe:'1yr', unit:'%', labelRegex:/\breturn on equity\b/i, ruleText:'2 pts if > 20%, else 0', max:2 },
+  { key:'fcf', name:'Free Cash Flow per Share', desc:'Is cash increasing?', timeframe:'2yr', unit:'$', labelRegex:/\bfree cash\s?flow per share\b/i, ruleText:'0 pt if decreasing/negative · 1 pt flat · 2 pts growing', max:2 },
+  { key:'bvps', name:'Book Value per Share', desc:'Liquidation value per share.', timeframe:'2yr', unit:'$', labelRegex:/\bbook value per share\b/i, ruleText:'0 pt if decreasing/negative · 1 pt flat · 2 pts growing', max:2 },
+  { key:'interestCoverage', name:'Interest Coverage Ratio', desc:'Ability to cover interest payments.', timeframe:'1yr', unit:'x', labelRegex:/\binterest coverage ratio\b/i, ruleText:'1 pt if > 3x, else 0', max:1 },
+  { key:'debtEquity', name:'Debt to Equity Ratio', desc:'Capacity to take on more debt.', timeframe:'1yr', unit:'x', labelRegex:/\bdebt to equity ratio\b/i, ruleText:'2 pts if < 1, else 0', max:2 },
+  { key:'dividends', name:'Dividends per Share', desc:'Cash returned to investors.', timeframe:'2yr', unit:'$', labelRegex:/\bdividend(s)?\s*per\s*share\b/i, ruleText:'0 pt none · 1 pt paid, flat/down · 2 pts increasing', max:2 },
+];
+const MAX_TOTAL = METRICS.reduce((s,m)=>s+m.max,0);
+
+const els = id => document.getElementById(id);
+const dropzone = els('dropzone'), fileInput = els('fileInput');
+const loading = els('loading'), loadingText = els('loadingText'), errorBanner = els('errorBanner');
+const resultsEl = els('results'), ledgerBody = els('ledgerBody'), emptyState = els('emptyState');
+const coNameEl = els('coName'), coMetaEl = els('coMeta'), crossrefRow = els('crossrefRow');
+const resetBtn = els('resetBtn');
+const completenessText = els('completenessText'), completenessBar = els('completenessBar');
+const gaugeFillEl = els('gaugeFill'), scoreNumEl = els('scoreNum');
+const tierBadgeEl = els('tierBadge'), tierLabelEl = els('tierLabel'), tierSubEl = els('tierSub');
+const pendingNoteEl = els('pendingNote'), methodologyNote = els('methodologyNote');
+const companyInput = els('companyInput'), suggestionsEl = els('suggestions');
+
+const state = {};
+const GAUGE_CIRC = 314.159;
+
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    els('panel-' + btn.dataset.tab).classList.add('active');
+    errorBanner.classList.remove('show');
+  });
+});
+
+function showError(msg){ errorBanner.textContent = msg; errorBanner.classList.add('show'); }
+function setLoading(on, text){ loading.classList.toggle('show', on); if(text) loadingText.textContent = text; }
+
+async function parsePdfBuffer(buf){
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let allLines = [];
+  for(let p=1; p<=pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const items = content.items.map(it => ({ x: it.transform[4], y: it.transform[5], str: it.str })).filter(it => it.str.trim().length);
+    allLines = allLines.concat(extractLines(items));
+  }
+  return allLines;
+}
+function extractLines(items){
+  const sorted = items.slice().sort((a,b)=> b.y - a.y || a.x - b.x);
+  const lines = []; let current = []; let currentY = null; const tol = 2.5;
+  for(const it of sorted){
+    if(currentY === null || Math.abs(it.y - currentY) <= tol){ current.push(it); currentY = currentY === null ? it.y : currentY; }
+    else{ lines.push(current); current = [it]; currentY = it.y; }
+  }
+  if(current.length) lines.push(current);
+  return lines.map(line => line.sort((a,b)=>a.x-b.x).map(i=>i.str).join(' ').replace(/\s+/g,' ').trim()).filter(l=>l.length);
+}
+function extractNumbers(line){
+  const matches = line.match(/-?\d[\d,]*\.?\d*%?/g) || [];
+  return matches.map(m => parseFloat(m.replace(/,/g,'').replace('%',''))).filter(v => !isNaN(v));
+}
+function findMetricData(lines, metric){
+  let best = null;
+  for(const line of lines){
+    if(metric.labelRegex.test(line)){
+      const nums = extractNumbers(line);
+      if(nums.length && (!best || nums.length > best.nums.length)) best = { line, nums };
+    }
+  }
+  return best;
+}
+function guessCompany(lines){
+  let ticker = null, name = null;
+  const tickerRe = /\b(NYSE|NASDAQ|AMEX|SET|HKEX|LSE)\s*:\s*[A-Z0-9.]{1,8}\b/i;
+  for(let i=0;i<lines.length;i++){
+    if(tickerRe.test(lines[i])){
+      ticker = lines[i].match(tickerRe)[0].toUpperCase().replace(/\s+/g,'').split(':')[1];
+      if(i>0 && lines[i-1].length < 60 && !/factsheet|summary|financial/i.test(lines[i-1])) name = lines[i-1];
+      break;
+    }
+  }
+  return { name, ticker };
+}
+function entriesFromPdfLines(lines){
+  const entries = {};
+  METRICS.forEach(metric=>{
+    const match = findMetricData(lines, metric);
+    const entry = { prior:null, latest:null, hasPrior:false, hasLatest:false, source:'PDF' };
+    if(match){
+      entry.hasLatest = true; entry.latest = match.nums[match.nums.length-1];
+      if(match.nums.length >= 2){ entry.hasPrior = true; entry.prior = match.nums[match.nums.length-2]; }
+    }
+    entries[metric.key] = entry;
+  });
+  return entries;
+}
+
+dropzone.addEventListener('click', ()=> fileInput.click());
+dropzone.addEventListener('dragover', e=>{ e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e=>{
+  e.preventDefault(); dropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{ if(e.target.files.length) handleFile(e.target.files[0]); });
+
+resetBtn.addEventListener('click', ()=>{
+  resultsEl.classList.remove('show'); emptyState.style.display = 'block';
+  fileInput.value = ''; errorBanner.classList.remove('show');
+  window.scrollTo({top:0, behavior:'smooth'});
+});
+
+async function handleFile(file){
+  errorBanner.classList.remove('show'); resultsEl.classList.remove('show');
+  if(file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')){
+    showError("That doesn't look like a PDF. Please upload a factsheet PDF."); return;
+  }
+  setLoading(true, 'Reading the factsheet…');
+  try{
+    const buf = await file.arrayBuffer();
+    const lines = await parsePdfBuffer(buf);
+    const { name, ticker } = guessCompany(lines);
+    const entries = entriesFromPdfLines(lines);
+    applyEntries(entries, { name: name || file.name.replace(/\.pdf$/i,''), meta: (ticker ? ticker + ' · ' : '') + 'parsed from ' + file.name, ticker }, null);
+  }catch(err){
+    console.error(err);
+    showError("Couldn't read that PDF. Try a different file, or a factsheet exported directly from Jitta.");
+  }finally{ setLoading(false); }
+}
+
+let searchTimer = null;
+companyInput.addEventListener('input', ()=>{
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(onCompanyTyped, 250);
+});
+companyInput.addEventListener('keydown', e=>{
+  if(e.key === 'Enter'){
+    const first = suggestionsEl.querySelector('.sugg-item');
+    if(first){ first.click(); }
+    else{
+      const guess = companyInput.value.trim();
+      if(guess) runCompanySearch(guess.toUpperCase());
+    }
+  }
+});
+els('companyGo').addEventListener('click', ()=>{
+  const first = suggestionsEl.querySelector('.sugg-item');
+  if(first){ first.click(); return; }
+  const guess = companyInput.value.trim();
+  if(!guess){ showError('Type a company name or ticker first, e.g. Apple or AAPL.'); return; }
+  runCompanySearch(guess.toUpperCase());
+});
+document.addEventListener('click', e=>{ if(!e.target.closest('.search-wrap')) suggestionsEl.classList.remove('show'); });
+
+async function onCompanyTyped(){
+  const q = companyInput.value.trim();
+  if(q.length < 2){ suggestionsEl.classList.remove('show'); return; }
+  suggestionsEl.innerHTML = '<div class="sugg-empty">Searching…</div>';
+  suggestionsEl.classList.add('show');
+  try{
+    const r = await fetch('/api/search?q=' + encodeURIComponent(q));
+    const data = await r.json();
+    if(data.error){ suggestionsEl.innerHTML = '<div class="sugg-empty">' + data.error + '</div>'; return; }
+    renderSuggestions(data.results || []);
+  }catch(e){
+    suggestionsEl.innerHTML = '<div class="sugg-empty">Couldn\'t reach the local server. Is server.py still running?</div>';
+  }
+}
+function renderSuggestions(list){
+  if(!list.length){ suggestionsEl.innerHTML = '<div class="sugg-empty">No matches — try a different name or ticker.</div>'; return; }
+  suggestionsEl.innerHTML = list.map(e =>
+    `<button type="button" class="sugg-item" data-ticker="${e.ticker}"><span class="sugg-ticker">${e.ticker}</span><span class="sugg-name">${e.title}</span></button>`
+  ).join('');
+  suggestionsEl.querySelectorAll('.sugg-item').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      companyInput.value = btn.querySelector('.sugg-name').textContent + ' (' + btn.dataset.ticker + ')';
+      suggestionsEl.classList.remove('show');
+      runCompanySearch(btn.dataset.ticker);
+    });
+  });
+}
+
+async function runCompanySearch(tickerOrGuess){
+  errorBanner.classList.remove('show'); resultsEl.classList.remove('show');
+  const ticker = tickerOrGuess.toUpperCase();
+  setLoading(true, 'Looking up ' + ticker + '…');
+  try{
+    const r = await fetch('/api/analyze?ticker=' + encodeURIComponent(ticker));
+    const data = await r.json();
+    if(data.error){ showError(data.error); return; }
+    let meta = ticker + ' · SEC EDGAR · CIK ' + data.company.cik;
+    if(data.quote && data.quote.price){
+      meta += ' · <span class="quote-chip">$' + data.quote.price + '</span> last close (Stooq' + (data.quote.date ? ', ' + data.quote.date : '') + ')';
+    }
+    coMetaEl.innerHTML = meta;
+    applyEntries(data.metrics, { name: data.company.title, ticker }, 'sec', true);
+  }catch(err){
+    console.error(err);
+    showError("Couldn't reach the local server. Make sure server.py is still running in your terminal, then try again.");
+  }finally{ setLoading(false); }
+}
+
+function sourceBadge(source){
+  if(source === 'sec') return { text:'SEC 10-K', cls:'src-sec' };
+  if(source === 'sec-computed') return { text:'SEC · derived', cls:'src-sec' };
+  if(source === 'PDF') return { text:'PDF', cls:'src-pdf' };
+  return { text:'manual', cls:'src-manual' };
+}
+
+function buildTableRow(metric){
+  const tr = document.createElement('tr');
+  tr.id = 'row-' + metric.key;
+  const unitTxt = metric.unit ? ' (' + metric.unit + ')' : '';
+  tr.innerHTML = `
+    <td class="col-mark"><div class="mark pending" id="mark-${metric.key}">${DASH_ICON}</div></td>
+    <td class="col-metric">
+      <div class="metric-name">${metric.name}</div>
+      <div class="metric-desc">${metric.desc}</div>
+      <div class="metric-tags">
+        <span class="tag">${metric.timeframe === '2yr' ? 'last 2 yrs' : 'latest yr'}</span>
+        <span class="tag source" id="src-${metric.key}">manual</span>
+      </div>
+      <div class="missing-note" id="note-${metric.key}" style="display:none;">Not found — enter manually.</div>
+    </td>
+    <td class="col-val">${metric.timeframe === '2yr' ? `<input type="number" step="any" class="cell-input" id="prior-${metric.key}" placeholder="prior">` : `<span class="dash">—</span>`}</td>
+    <td class="col-val"><input type="number" step="any" class="cell-input" id="latest-${metric.key}" placeholder="${unitTxt.trim() || 'value'}"></td>
+    <td class="col-rule">${metric.ruleText}</td>
+    <td class="col-score points"><span class="earned pending" id="pts-${metric.key}">–</span> <span class="max">/${metric.max}</span></td>
+  `;
+  return tr;
+}
+
+function renderCrossref(ticker){
+  if(!ticker){ crossrefRow.innerHTML = ''; return; }
+  const links = [
+    { label:'stockanalysis.com', url:'https://stockanalysis.com/stocks/' + ticker.toLowerCase() },
+    { label:'Macrotrends', url:'https://www.macrotrends.net/stocks/charts/' + ticker + '/x/x' },
+    { label:'Yahoo Finance', url:'https://finance.yahoo.com/quote/' + ticker },
+  ];
+  const arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 17L17 7M17 7H8M17 7v9"/></svg>';
+  crossrefRow.innerHTML = '<span style="font-family:IBM Plex Mono,monospace;font-size:11px;color:var(--text-faint);align-self:center;">Cross-check on:</span>' +
+    links.map(l => `<a class="crossref-link" href="${l.url}" target="_blank" rel="noopener">${l.label}${arrow}</a>`).join('');
+}
+
+function applyEntries(entries, companyMeta, mode, metaAlreadySet){
+  emptyState.style.display = 'none';
+  coNameEl.textContent = companyMeta.name;
+  if(!metaAlreadySet) coMetaEl.textContent = companyMeta.meta;
+  renderCrossref(companyMeta.ticker);
+
+  ledgerBody.innerHTML = '';
+  Object.keys(state).forEach(k=>delete state[k]);
+
+  METRICS.forEach(metric=>{
+    const e = entries[metric.key] || { prior:null, latest:null, hasPrior:false, hasLatest:false };
+    state[metric.key] = { ...e, autoFound: !!e.hasLatest };
+    ledgerBody.appendChild(buildTableRow(metric));
+  });
+
+  if(mode === 'sec'){
+    methodologyNote.textContent = 'Pulled live from SEC EDGAR by this app\u2019s own local server, with price cross-checked against Stooq. Revenue is shown in $ millions. ROE, Debt/Equity, FCF/share and Interest Coverage are calculated from raw reported figures — check the "SEC · derived" tag on each row.';
+    methodologyNote.classList.add('show');
+  }else{
+    methodologyNote.classList.remove('show');
+  }
+
+  METRICS.forEach(metric=>{
+    const badge = sourceBadge(state[metric.key].source);
+    const el = document.getElementById('src-' + metric.key);
+    if(el){ el.textContent = state[metric.key].hasLatest ? badge.text : 'manual'; el.className = 'tag source ' + (state[metric.key].hasLatest ? badge.cls : 'src-manual'); }
+  });
+
+  resultsEl.classList.add('show');
+  recalcAll();
+  window.scrollTo({ top: resultsEl.offsetTop - 20, behavior:'smooth' });
+}
+
+function scoreMetric(metric, prior, latest){
+  const hasLatest = latest !== null && latest !== undefined && latest !== '' && !isNaN(latest);
+  if(!hasLatest) return null;
+  latest = parseFloat(latest);
+  if(metric.timeframe === '1yr'){
+    if(metric.key === 'roe') return latest > 20 ? 2 : 0;
+    if(metric.key === 'interestCoverage') return latest > 3 ? 1 : 0;
+    if(metric.key === 'debtEquity') return latest < 1 ? 2 : 0;
+  }
+  const hasPrior = prior !== null && prior !== undefined && prior !== '' && !isNaN(prior);
+  if(metric.key === 'dividends'){
+    if(latest <= 0) return 0;
+    if(!hasPrior) return 1;
+    prior = parseFloat(prior);
+    return latest > prior ? 2 : 1;
+  }
+  if(!hasPrior) return null;
+  prior = parseFloat(prior);
+  if(latest < prior || prior < 0 || latest < 0) return 0;
+  if(latest === prior) return 1;
+  return 2;
+}
+
+function recalcAll(){
+  let total = 0, filledCount = 0, pendingList = [];
+  METRICS.forEach(metric=>{
+    const entry = state[metric.key];
+    const priorInput = document.getElementById('prior-' + metric.key);
+    const latestInput = document.getElementById('latest-' + metric.key);
+    if(priorInput && entry.prior !== null && priorInput.value === '') priorInput.value = entry.prior;
+    if(latestInput && entry.latest !== null && latestInput.value === '') latestInput.value = entry.latest;
+    if(priorInput && !priorInput.dataset.bound){ priorInput.dataset.bound = '1'; priorInput.addEventListener('input', recalcAll); }
+    if(latestInput && !latestInput.dataset.bound){ latestInput.dataset.bound = '1'; latestInput.addEventListener('input', recalcAll); }
+
+    const priorVal = priorInput ? priorInput.value : null;
+    const latestVal = latestInput ? latestInput.value : null;
+    const pts = scoreMetric(metric, priorVal, latestVal);
+
+    const mark = document.getElementById('mark-' + metric.key);
+    const ptsEl = document.getElementById('pts-' + metric.key);
+    const rowEl = document.getElementById('row-' + metric.key);
+    const noteEl = document.getElementById('note-' + metric.key);
+    const wasAutoMissing = !entry.autoFound;
+    const isFilled = pts !== null;
+
+    if(isFilled){
+      filledCount++; total += pts;
+      mark.className = 'mark ' + (pts === 0 ? 'fail' : 'pass');
+      mark.innerHTML = pts === 0 ? X_ICON : CHECK_ICON;
+      ptsEl.textContent = pts; ptsEl.className = 'earned ' + (pts === 0 ? 'fail' : 'pass');
+      rowEl.classList.remove('missing'); noteEl.style.display = 'none';
+    }else{
+      mark.className = 'mark pending'; mark.innerHTML = DASH_ICON;
+      ptsEl.textContent = '–'; ptsEl.className = 'earned pending';
+      if(wasAutoMissing){ rowEl.classList.add('missing'); noteEl.style.display = 'block'; }
+      pendingList.push(metric.name);
+    }
+  });
+
+  completenessText.textContent = filledCount + ' of ' + METRICS.length + ' metrics scored';
+  completenessBar.style.width = Math.round((filledCount / METRICS.length) * 100) + '%';
+
+  animateNumber(scoreNumEl, total, 700);
+  gaugeFillEl.style.strokeDashoffset = GAUGE_CIRC * (1 - Math.min(total, MAX_TOTAL) / MAX_TOTAL);
+
+  if(pendingList.length){
+    pendingNoteEl.classList.add('show');
+    pendingNoteEl.textContent = pendingList.length + ' metric' + (pendingList.length>1?'s':'') + ' still need' + (pendingList.length>1?'':'s') + ' a value: ' + pendingList.join(', ') + '.';
+  }else{ pendingNoteEl.classList.remove('show'); }
+
+  const complete = filledCount === METRICS.length;
+  gaugeFillEl.classList.remove('tier-green','tier-amber','tier-rose');
+  tierBadgeEl.classList.remove('tier-green','tier-amber','tier-rose');
+  if(complete){
+    if(total >= 12){ gaugeFillEl.classList.add('tier-green'); tierBadgeEl.classList.add('tier-green'); tierLabelEl.textContent = 'Strong Fundamentals'; tierSubEl.textContent = 'Clears most checks — a genuinely solid balance sheet and earnings profile.'; }
+    else if(total >= 8){ gaugeFillEl.classList.add('tier-amber'); tierBadgeEl.classList.add('tier-amber'); tierLabelEl.textContent = 'Mixed Signals'; tierSubEl.textContent = 'Some strengths, some weak spots. Worth digging into which rows failed.'; }
+    else { gaugeFillEl.classList.add('tier-rose'); tierBadgeEl.classList.add('tier-rose'); tierLabelEl.textContent = 'Weak Fundamentals'; tierSubEl.textContent = 'Several checks failed. Treat this one with caution.'; }
+  }else{
+    tierLabelEl.textContent = 'Grading in progress';
+    tierSubEl.textContent = 'Fill in the remaining rows for a final verdict.';
+  }
+}
+
+function animateNumber(el, to, duration){
+  const from = parseInt(el.textContent, 10) || 0;
+  if(from === to){ el.textContent = to; return; }
+  const start = performance.now();
+  function step(now){
+    const p = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(from + (to - from) * eased);
+    if(p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+</script>
+</body>
+</html>
