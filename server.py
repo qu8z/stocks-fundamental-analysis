@@ -35,12 +35,19 @@ HOST = "0.0.0.0" if "PORT" in os.environ else "localhost"
 # it just needs to look like a real app/contact, not a browser UA string.
 USER_AGENT = "StocksFundamentalAnalysis/1.0 (personal research tool)"
 
-# Optional second data source for cross-checking. Off by default — get a free
-# key at https://www.alphavantage.co/support/#api-key and set it as an
-# environment variable (ALPHA_VANTAGE_KEY) to turn this on. Free tier is
-# capped at 25 requests/day, so treat it as an occasional spot-check rather
-# than an always-on second source.
-ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "").strip()
+# ============================================================================
+# OPTIONAL: paste your free Alpha Vantage API key between the quotes below.
+# Get one free (just an email, no card) at:
+#   https://www.alphavantage.co/support/#api-key
+# Leave it as "" (empty) to skip this feature — the rest of the app works
+# fine either way, this only adds a bonus comparison panel when it's set.
+ALPHA_VANTAGE_KEY_HARDCODED = "5USD4432R6508Y3U"
+# ============================================================================
+
+# (Advanced/optional: if you'd rather set it as an environment variable
+# instead of editing this file, that still works and takes priority over
+# the line above.)
+ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", ALPHA_VANTAGE_KEY_HARDCODED).strip()
 
 ROOT = Path(__file__).parent
 CACHE_TTL = 60 * 60  # 1 hour
